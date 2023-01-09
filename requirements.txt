@@ -1,0 +1,11 @@
+Flask==0.12
+Flask-Sockets==0.2.1
+kubernetes==25.3.0
+ntessa==0.2.112
+Werkzeug==0.16.0
+redis==2.10.6
+requests==2.27.1
+gevent==20.5.0
+greenlet==1.1.2
+cachetools==4.2.2
+pyjwt==1.7.1
