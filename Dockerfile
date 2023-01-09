@@ -8,4 +8,4 @@ RUN pip3 install -r requirements.txt -i https://pip.nie.netease.com/simple
 
 CMD ["python3", "run.py"]
 
-# docker build --platform=linux/amd64 -t ncr.nie.netease.com/ccbaseimage/pod-web-terminal:v1 .
+# docker build --platform=linux/amd64 -t ncr.nie.netease.com/ccbaseimage/pod-web-console:v1 .

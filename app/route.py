@@ -106,7 +106,7 @@ def terminal():
                 <ul> 
                     <li>region</li>
                     <li>namespace</li>
-                    <li>pod_name</li>
+                    <li>pod</li>
                     <li>container</li> 
                 </ul>
             <br /><br /> 
@@ -118,7 +118,8 @@ def terminal():
     host, port, db = re.match(r'redis://(.*):(.*)/(.*)', redis_url).groups()
     redis_client = RedisResource(host=host, port=port, db=db)
     # redis中key的格式，比如：aladdin-cc-symconsole-pythonapp-actanchorhotcard2019_quzhongling
-    key = 'aladdin-' + Config.region_info[request.args.get('region')]['project'] + '-symconsole-' + request.args.get('namespace') + '-' + request.args.get('container') + '_' + session.get('email', '').split('@')[0]
+    # cc的比较特殊，比如登陆actanchorhotcard2019sandbox，需要查询的服务是actanchorhotcard2019
+    key = 'aladdin-' + Config.region_info[request.args.get('region')]['project'] + '-symconsole-' + request.args.get('namespace') + '-' + request.args.get('container').split('sandbox')[0] + '_' + session.get('email', '').split('@')[0]
     value = redis_client.read(key)
     if not value:
         return "<h4>redis中没有找到以下key: \

@@ -1,0 +1,24 @@
+image: ncr.nie.netease.com/library/debian_ci
+
+stages:
+  - build
+
+variables:
+  DOCKER_REGISTRY: "ncr.nie.netease.com"
+  NCR_NAMESPACE: "ccbaseimage"
+  DOCKER_REPO_master: "pod-web-console"
+
+build_and_push:
+  only:
+    - master
+  tags:
+    - docker
+  stage: build
+  script:
+    - DOCKER_REPO=`eval echo '$'{DOCKER_REPO_$CI_BUILD_REF_NAME}`
+    - TAG="`date "+%Y%m%d%H%M"`-$CI_COMMIT_SHORT_SHA"
+    - image=${DOCKER_REGISTRY}/${NCR_NAMESPACE}/${DOCKER_REPO}:$TAG
+    - docker login $DOCKER_REGISTRY -u $AUTH_USER -p $AUTH_KEY
+    - docker build -t $image .
+    - docker push $image
+    - echo $image
