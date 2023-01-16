@@ -163,7 +163,6 @@ def terminal_socket(ws, region, namespace, pod, container):
         command_line = ''
         while not ws.closed: #不停的接收ws数据帧，比如，输入一个ls，会分2条帧l、s过来
             message = ws.receive()
-            print(message.encode('utf8'))
 
             #回车后：
             # debian: \r 
@@ -177,7 +176,6 @@ def terminal_socket(ws, region, namespace, pod, container):
                     container_stream.close()
                     ws.close()
                 if command_line != '' and message != '\t': # 排除：回车、或者table键
-                    print(command_line)
                     if command_line.split(' ')[0] not in Config.default_user_allow_command and not is_root: # root用户不做命令校验
                         message = '\x03' # 发送ctrl+c
                         ws.send(' -> 不允许执行' + command_line.split(' ')[0] + '    ')
