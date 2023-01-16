@@ -14,10 +14,10 @@ from app.k8s import k8s_client, k8s_stream_thread
 from app import app
 import app.openid as openid
 
-# from app.config import Config
 import app.config as Config
 
 sockets = Sockets(app)
+
 
 @app.route('/')
 def homepage():
@@ -112,31 +112,42 @@ def terminal():
             <br /><br /> 
             比如： http://xxx.163.com/terminal/window?region=xxx&namespace=xxx&pod=xxx&container=xxx
             '''
-    # 登陆有，验证redis中的key是否过期
-    from app.redis import RedisResource
-    redis_url = Config.myConfig.REDIS
-    host, port, db = re.match(r'redis://(.*):(.*)/(.*)', redis_url).groups()
-    redis_client = RedisResource(host=host, port=port, db=db)
-    # redis中key的格式，比如：aladdin-cc-symconsole-pythonapp-actanchorhotcard2019_quzhongling
-    # cc的比较特殊，比如登陆actanchorhotcard2019sandbox，需要查询的服务是actanchorhotcard2019
-    key = 'aladdin-' + Config.region_info[request.args.get('region')]['project'] + '-symconsole-' + request.args.get('namespace') + '-' + request.args.get('container').split('sandbox')[0] + '_' + session.get('email', '').split('@')[0]
-    value = redis_client.read(key)
-    if not value:
-        return "<h4>redis中没有找到以下key: \
-        <h3>{}</h3> \
-        <h4>可能未申请或者已过期</h4>".format(key),403
-    else:
-        return render_template('terminal.html')
+    return render_template('terminal.html')
 
 @sockets.route('/terminal/<region>/<namespace>/<pod>/<container>')
 def terminal_socket(ws, region, namespace, pod, container):
     cols = request.args.get('cols') # 控制tty输出的长、宽
     rows = request.args.get('rows')
     # logging.info('Try create socket connection')
-    kub = k8s_client(region)
+    
+    # 登陆有，验证redis中的key是否过期
+    from app.redis import RedisResource
+    redis_url = Config.myConfig.REDIS
+    host, port, db = re.match(r'redis://(.*):(.*)/(.*)', redis_url).groups()
+    redis_client = RedisResource(host=host, port=port, db=db)
+    # redis中key的格式，比如：
+    # aladdin-cc-symconsole-pythonapp-actanchorhotcard2019_quzhongling，默认用户进入
+    # aladdin-cc-symconsole-pythonapp-actanchorhotcard2019_quzhongling_root, root用户进入
+    # cc的比较特殊，比如登陆actanchorhotcard2019sandbox，需要查询的服务是actanchorhotcard2019
+    key = 'aladdin-' + Config.kube_config_dict[region]['project'] + '-symconsole-' + namespace + '-' + container.split('sandbox')[0] + '_' + session.get('email', '').split('@')[0]
+    # print(key)
+    if redis_client.read(key + '_root') :
+        is_root = True
+    elif redis_client.read(key):
+        is_root = False
+    else:
+        ws.send('redis中没有找到以下key:\r\n')
+        ws.send(key + '_root' + '(不限制命令执行！)\r\n')
+        ws.send(key + '(限制命令执行！))\r\n')
+        ws.send('可能未申请或者已过期!\r\n')
+        ws.close()
+        return
+    
+    kub = k8s_client(region, is_root)
 
     try:
-        container_stream = kub.terminal_start(Config.region_info[region]['project'] + '-' + namespace, pod, container, cols, rows)
+        namespace = Config.kube_config_dict[str(region)]['project'] + '-' + namespace
+        container_stream = kub.terminal_start(namespace, pod, container, cols, rows)
         # print(namespace,pod,container)
     except Exception as err:
         logging.error('Connect container error: {}'.format(err))
@@ -148,17 +159,38 @@ def terminal_socket(ws, region, namespace, pod, container):
     kub_stream = k8s_stream_thread(ws, container_stream)
     kub_stream.start()
 
-    logging.info('Start terminal')
     try:
-        while not ws.closed:
+        command_line = ''
+        while not ws.closed: #不停的接收ws数据帧，比如，输入一个ls，会分2条帧l、s过来
             message = ws.receive()
-            if message is not None:
-                if message != '__ping__':
-                    container_stream.write_stdin(message)
-        container_stream.write_stdin('exit\r')
+            print(message.encode('utf8'))
+
+            #回车后：
+            # debian: \r 
+            # alpine: \r + \x1b[3;41R
+            # \t，table，命令补全
+            if message != '\r' and message != '\t' and (not message.startswith('\x1b[')):  
+                command_line += message
+            else:
+                if command_line == 'exit': # 用户进入可能是普通用户，exit会回到root用户，这里控制下，如果输入exit直接关闭ws
+                    container_stream.write_stdin('\r') #退出一下，否则很多sh进程残留
+                    container_stream.close()
+                    ws.close()
+                if command_line != '' and message != '\t': # 排除：回车、或者table键
+                    print(command_line)
+                    if command_line.split(' ')[0] not in Config.default_user_allow_command and not is_root: # root用户不做命令校验
+                        message = '\x03' # 发送ctrl+c
+                        ws.send(' -> 不允许执行' + command_line.split(' ')[0] + '    ')
+                    command_line = '' # 命令行结束，将变量置空
+            if message is not None and message != '__ping__':
+                container_stream.write_stdin(message)
+                
+        container_stream.write_stdin('exit\r') #ws关闭了，到容器的通道也关闭
+        container_stream.close() #ws关闭了，到容器的通道也关闭
     except Exception as err:
         logging.error('Connect container error: {}'.format(err))
     finally:
+        container_stream.write_stdin('exit\r') #直接刷新浏览器，需要将用户退出下，否则会有很多sh进程残留
         container_stream.close()
         ws.close()
 
