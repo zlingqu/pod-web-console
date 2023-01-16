@@ -7,9 +7,11 @@ variables:
   DOCKER_REGISTRY: "ncr.nie.netease.com"
   NCR_NAMESPACE: "ccbaseimage"
   DOCKER_REPO_master: "pod-web-console"
+  DOCKER_REPO_testing: "pod-web-console-testing"
 
 build_and_push:
   only:
+    - testing
     - master
   tags:
     - docker
