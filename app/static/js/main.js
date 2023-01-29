@@ -35,10 +35,10 @@ function createTerminal() {
     });
 
     term.open(containerTerm, false);
-    console.log(term.cols, term.rows);
+    // console.log(term.cols, term.rows);
     term.fit(); // 根据屏幕大小自动调整term.cols, term.rows
     initWebsocket() // term.cols, term.rows 通过websocket请求传到后端
-    console.log(term.cols, term.rows);
+    // console.log(term.cols, term.rows);
     
     websocket.onopen = runRealTerminal;
     websocket.onclose = runFakeTerminal;
@@ -53,8 +53,6 @@ function runRealTerminal() {
   }
 
   function runFakeTerminal() {
-    if (term._initialized) {
-      return;
-    }
+    term.writeln(" ");
     term.writeln("已退出. 感谢使用!");
   }
