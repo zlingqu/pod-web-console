@@ -128,7 +128,9 @@ def terminal_socket(ws, region, namespace, pod, container):
     # redis中key的格式，比如：
     # aladdin-cc-symconsole-pythonapp-actanchorhotcard2019_quzhongling，默认用户进入
     # aladdin-cc-symconsole-pythonapp-actanchorhotcard2019_quzhongling_root, root用户进入
-    # cc的比较特殊，比如登陆actanchorhotcard2019sandbox，需要查询的服务是actanchorhotcard2019
+    # cc的比较特殊，比如登陆actanchorhotcard2019sandbox，actanchorhotcard2019-sandbox, 需要查询的服务是actanchorhotcard2019
+    if container.endswith('-stage'):
+        container = container[:-6]
     key = 'aladdin-' + Config.kube_config_dict[region]['project'] + '-symconsole-' + namespace + '-' + container.split('sandbox')[0] + '_' + session.get('email', '').split('@')[0]
     # print(key)
     if redis_client.read(key + '_root') :
