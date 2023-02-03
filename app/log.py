@@ -5,9 +5,8 @@ from pythonjsonlogger import jsonlogger
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DEBUG = True  # 标记是否在开发环境
 
-# os.m
-# os.mkdir('log')
-if not  os.path.exists(BASE_DIR + '/log'):
+
+if not os.path.exists(BASE_DIR + '/log'):
     os.mkdir(BASE_DIR + '/log')
 
 # 给过滤器使用的判断
@@ -44,7 +43,7 @@ def get_logger():
                 'level': 'DEBUG',
                 'class': 'logging.handlers.RotatingFileHandler',
                 'formatter': 'json',
-                'filename': os.path.join("./log/", 'pod-web-console-command.log'),  # 输出位置
+                'filename': os.path.join( BASE_DIR + '/log/', 'pod-web-console-command.log'),  # 输出位置
                 'maxBytes': 1024 * 1024 * 500,  # 文件大小 500M
                 'backupCount': 20,  # 备份份数
                 'encoding': 'utf8',  # 文件编码
