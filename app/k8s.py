@@ -98,6 +98,8 @@ class k8s_stream_thread(threading.Thread):
                             # print(cmd_out_tmp)
                             command_in = cmd_out_tmp.split('\r\n')[0]
                             command_out = '\n'.join(cmd_out_tmp.split('\r\n')[1:])
+                            if command_in.startswith('vi') or command_in.startswith('nano'):
+                                command_out = ''
                             logger.info({
                                 'username': self.username,
                                 'fullname': self.fullname,
