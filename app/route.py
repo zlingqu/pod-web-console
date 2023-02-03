@@ -158,11 +158,14 @@ def terminal_socket(ws, region, namespace, pod, container):
         ws.close()
         return
 
-    kub_stream = k8s_stream_thread(ws, container_stream)
+    username = session.get('email', '').split('@')[0] # 用于日志打印
+    fullname = session.get('fullname', '')
+
+    kub_stream = k8s_stream_thread(ws, container_stream, region, namespace, pod, username, fullname)
     kub_stream.start()
 
     try:
-        command_line = ''
+        cmd_in = ''
         while not ws.closed: #不停的接收ws数据帧，比如，输入一个ls，会分2条帧l、s过来
             message = ws.receive()
 
@@ -170,18 +173,21 @@ def terminal_socket(ws, region, namespace, pod, container):
             # debian: \r 
             # alpine: \r + \x1b[3;41R
             # \t，table，命令补全
-            if message != '\r' and message != '\t' and (not message.startswith('\x1b[')):  
-                command_line += message
+            # if message and message != '\r' and message != '\t' and (not message.startswith('\x1b[')): 
+            if re.match('[\/\.\w-]', message)  or message == ' ': # \w表示[0-9a-zA-Z-] 
+                cmd_in += message
+            elif message == '\x7f':     # 删除键
+                cmd_in = cmd_in[:-1]
             else:
-                if command_line == 'exit': # 用户进入可能是普通用户，exit会回到root用户，这里控制下，如果输入exit直接关闭ws
+                if cmd_in == 'exit': # 用户进入可能是普通用户，exit会回到root用户，这里控制下，如果输入exit直接关闭ws
                     container_stream.write_stdin('\r') #退出一下，否则很多sh进程残留
                     container_stream.close()
                     ws.close()
-                if command_line != '' and message != '\t': # 排除：回车、或者table键
-                    if command_line.split(' ')[0] not in Config.default_user_allow_command and not is_root: # root用户不做命令校验
+                if cmd_in != '' and message != '\t': # 排除：回车、或者table键
+                    if cmd_in.split(' ')[0] not in Config.default_user_allow_command and not is_root: # root用户不做命令校验
                         message = '\x03' # 发送ctrl+c
-                        ws.send(' -> 不允许执行' + command_line.split(' ')[0] + '    ')
-                    command_line = '' # 命令行结束，将变量置空
+                        ws.send(' -> 不允许执行' + cmd_in.split(' ')[0] + '    ')
+                    cmd_in = '' # 命令行结束，将变量置空
             if message is not None and message != '__ping__':
                 container_stream.write_stdin(message)
                 
