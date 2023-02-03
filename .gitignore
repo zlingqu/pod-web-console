@@ -2,3 +2,5 @@
 __pycache__
 .DS_Store
 app/config.py
+app/log/*
+log
