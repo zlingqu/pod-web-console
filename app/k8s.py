@@ -6,18 +6,33 @@ import json,re
 import app.config as Config
 import app.log as Log
 from flask import session
+from app.redis import RedisResource
+from ntessa.utils import get_auth_token
 
+redis_client = RedisResource()
 logger = Log.get_logger()
 
 class k8s_client(object):
     def __init__(self, region, is_root):
         if not Config.kube_config_dict.get(str(region),''): # region输入错误
             return None
-        config.load_kube_config_from_dict(config_dict=Config.kube_config_dict.get(str(region),'')['kube'])
         self.region = region
+        self._update_token()
         self.is_root = is_root
         self.project = Config.kube_config_dict[region]['project']
+        config.load_kube_config_from_dict(config_dict=Config.kube_config_dict.get(str(region),'')['kube'])
         self.client_core_v1 = client.CoreV1Api()
+        
+
+    def _update_token(self):
+        key = 'pod_web_console_k8s_token'
+        value = redis_client.read( key)
+        if value:
+            Config.kube_config_dict.get(str(self.region),'')['kube']['users'][0]['user']['token'] = value
+        else:
+            token = get_auth_token(Config.auth_user, Config.auth_key, ttl=60 * 60 * 24)
+            redis_client.write(key, token, 60 * 60 * 23 )
+            Config.kube_config_dict.get(str(self.region),'')['kube']['users'][0]['user']['token'] = token
 
     def get_ns(self):
         ret = self.client_core_v1.list_namespace()
