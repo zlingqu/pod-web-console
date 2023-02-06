@@ -13,9 +13,10 @@ import re
 from app.k8s import k8s_client, k8s_stream_thread
 from app import app
 import app.openid as openid
-
 import app.config as Config
+from app.redis import RedisResource
 
+redis_client = RedisResource()
 sockets = Sockets(app)
 
 
@@ -120,11 +121,7 @@ def terminal_socket(ws, region, namespace, pod, container):
     rows = request.args.get('rows')
     # logging.info('Try create socket connection')
     
-    # 登陆有，验证redis中的key是否过期
-    from app.redis import RedisResource
-    redis_url = Config.myConfig.REDIS
-    host, port, db = re.match(r'redis://(.*):(.*)/(.*)', redis_url).groups()
-    redis_client = RedisResource(host=host, port=port, db=db)
+    # 验证redis中的key是否过期
     # redis中key的格式，比如：
     # aladdin-cc-symconsole-pythonapp-actanchorhotcard2019_quzhongling，默认用户进入
     # aladdin-cc-symconsole-pythonapp-actanchorhotcard2019_quzhongling_root, root用户进入
@@ -133,27 +130,32 @@ def terminal_socket(ws, region, namespace, pod, container):
         container = container[:-6]
     key = 'aladdin-' + Config.kube_config_dict[region]['project'] + '-symconsole-' + namespace + '-' + container.split('sandbox')[0] + '_' + session.get('email', '').split('@')[0]
     # print(key)
-    if redis_client.read(key + '_root') :
-        is_root = True
-    elif redis_client.read(key):
-        is_root = False
-    else:
-        ws.send('redis中没有找到以下key:\r\n')
-        ws.send(key + '_root' + '(不限制命令执行！)\r\n')
-        ws.send(key + '(限制命令执行！))\r\n')
-        ws.send('可能未申请或者已过期!\r\n')
+    try:
+        if redis_client.read(key + '_root') :
+            is_root = True
+        elif redis_client.read(key):
+            is_root = False
+        else:
+            ws.send('redis中没有找到以下key:\r\n')
+            ws.send(key + '_root' + '(不限制命令执行！)\r\n')
+            ws.send(key + '(限制命令执行！))\r\n')
+            ws.send('可能未申请或者已过期!\r\n')
+            ws.close()
+            return
+    except:
+        ws.send('redis连接失败！')
         ws.close()
         return
     
     kub = k8s_client(region, is_root)
 
     try:
+        # print(Config.kube_config_dict)
         namespace = Config.kube_config_dict[str(region)]['project'] + '-' + namespace
         container_stream = kub.terminal_start(namespace, pod, container, cols, rows)
         # print(namespace,pod,container)
     except Exception as err:
-        logging.error('Connect container error: {}'.format(err))
-        ws.send('Connect container error: {}'.format(err))
+        ws.send('Connect container error: {0}\r\n'.format(err))
         ws.send('可能原因：region参数等输入错误、服务到region的网络不通等！')
         ws.close()
         return
