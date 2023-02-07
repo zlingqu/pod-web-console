@@ -127,9 +127,9 @@ def terminal_socket(ws, region, namespace, pod, container):
     # aladdin-cc-symconsole-pythonapp-actanchorhotcard2019_quzhongling_root, root用户进入
     # cc的比较特殊，比如登陆actanchorhotcard2019sandbox，actanchorhotcard2019-sandbox, 需要查询的服务是actanchorhotcard2019
     container_tmp = container
-    if container.endswith('-stage'):
-        container_tmp = container[:-6]
-    container_tmp =  container_tmp.split('sandbox')[0]
+    if Config.kube_config_dict[region]['project'] == 'cc':
+        container_tmp =  container.split('sandbox')[0]
+        container_tmp =  container_tmp.split('-stage')[0]
     key = 'aladdin-' + Config.kube_config_dict[region]['project'] + '-symconsole-' + namespace + '-' + container_tmp + '_' + session.get('email', '').split('@')[0]
     # print(key)
     try:
@@ -173,30 +173,31 @@ def terminal_socket(ws, region, namespace, pod, container):
         while not ws.closed: #不停的接收ws数据帧，比如，输入一个ls，会分2条帧l、s过来
             message = ws.receive()
             # print(message.encode('utf-8'))
-
-            #回车后：
-            # debian: \r 
-            # alpine: \r + \x1b[3;41R
-            # \t，table，命令补全
-            # if message and message != '\r' and message != '\t' and (not message.startswith('\x1b[')): 
-            if message == '\x04':
-                cmd_in = ''
-                ws.send(' -> 不允许执行 Ctrl + d !' )
-                container_stream.write_stdin('\x03') # 发送ctrl+c
-            elif re.match('[\/\.\w-]', message)  or message == ' ': # \w表示[0-9a-zA-Z-] 
-                cmd_in += message
-            elif message == '\x7f':     # 删除键
-                cmd_in = cmd_in[:-1]
-            else:
-                if cmd_in == 'exit': # 用户进入可能是普通用户，exit会回到root用户，这里控制下，如果输入exit直接关闭ws
-                    container_stream.write_stdin('\r') #退出一下，否则很多sh进程残留
-                    container_stream.close()
-                    ws.close()
-                if cmd_in != '' and message != '\t': # 排除：回车、或者table键
-                    if cmd_in.split(' ')[0] not in Config.default_user_allow_command and not is_root: # root用户不做命令校验
-                        message = '\x03' # 发送ctrl+c
-                        ws.send(' -> 不允许执行' + cmd_in.split(' ')[0] + '    ')
-                    cmd_in = '' # 命令行结束，将变量置空
+            if not is_root: # 非root权限才进行输入判断
+                #回车后：
+                # debian: \r 
+                # alpine: \r + \x1b[3;41R
+                # \t，table，命令补全
+                # '\x1b[A' 上箭头
+                # '\x1b[B' 下箭头
+                if message == '\x04':
+                    cmd_in = ''
+                    ws.send(' -> 不允许执行 Ctrl + d !' )
+                    container_stream.write_stdin('\x03') # 发送ctrl+c
+                elif re.match('[/\.\|\w-]', message)  or message == ' ': # \w表示[0-9a-zA-Z-] 
+                    cmd_in += message
+                elif message == '\x7f':     # 删除键
+                    cmd_in = cmd_in[:-1]
+                elif message == '\r' or message.startswith('\x1b['): # 输入结束
+                    if cmd_in == 'exit': # 用户进入可能是普通用户，exit会回到root用户，这里控制下，如果输入exit直接关闭ws
+                        container_stream.write_stdin('\r') #退出一下，否则很多sh进程残留
+                        container_stream.close()
+                        ws.close()
+                    if cmd_in != '' and message != '\t': # 排除：回车、或者table键
+                        if cmd_in.split(' ')[0] not in Config.default_user_allow_command: # root用户不做命令校验
+                            message = '\x03' # 发送ctrl+c
+                            ws.send(' -> 不允许执行' + cmd_in.split(' ')[0] + '    ')
+                        cmd_in = '' # 命令行结束，将变量置空
             if message is not None and message != '__ping__':
                 container_stream.write_stdin(message)
                 
