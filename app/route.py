@@ -14,6 +14,7 @@ from app.k8s import k8s_client, k8s_stream_thread
 from app import app
 import app.openid as openid
 import app.config as Config
+import app.common as Common
 from app.redis import RedisResource
 
 redis_client = RedisResource()
@@ -195,7 +196,8 @@ def terminal_socket(ws, region, namespace, pod, container):
                         container_stream.close()
                         ws.close()
                     if cmd_in != '' and message != '\t': # 排除：回车、或者table键
-                        if cmd_in.split(' ')[0] not in Config.default_user_allow_command: # root用户不做命令校验
+                        # cmd_in 举例， /usr/bin/wget 'aa.com/a.txt'、ps ux、ip
+                        if not Common.is_allow_command(cmd_in.split(' ')[0].split('/')[-1]):
                             message = '\x03' # 发送ctrl+c
                             ws.send(' -> 不允许执行' + cmd_in.split(' ')[0] + '    ')
                         cmd_in = '' # 命令行结束，将变量置空

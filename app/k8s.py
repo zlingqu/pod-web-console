@@ -86,7 +86,8 @@ class k8s_stream_thread(threading.Thread):
         self.fullname = fullname
         # nguser@jeventproxynew-7776d48b44-sxvdg:~$
         # root@jeventproxynew-7776d48b44-sxvdg:/var/log#
-        self.ps1 = '[\w].*@' + self.pod + ':[~/\w].*[\$#]{1}\s'
+        # (pythonappvenv) nguser@agmhsyjh2023-dcd64db4c-wrfs8:/home/cc/.virtualenvs/pythonapp/agmhsyjh2023/bin$ 
+        self.ps1 = '[()\w ]*@' + self.pod + ':[~/\.\w]*[\$#]{1}\s'
     
     def _is_include_ps1(self,string):
         if re.search(self.ps1,string):
@@ -106,11 +107,12 @@ class k8s_stream_thread(threading.Thread):
                     cmd_out += stdout
                     # print('cmd_out:',cmd_out.encode('utf8'))
                     code, subStr = self._is_include_ps1(cmd_out) # 输出结束
-                    # print('cmd_out:',cmd_out,code,subStr)
+                    # print('cmd_out:',cmd_out.encode('utf8'),code,subStr.encode('utf8'))
                     if code:
                         cmd_out_tmp = cmd_out.replace(subStr,'')
+                        # print('cmd_out_tmp:',cmd_out_tmp.encode('utf8'))
                         if cmd_out_tmp not in ['\r\n', '']:
-                            # print(cmd_out_tmp)
+                            # print(cmd_out_tmp.encode('utf8'))
                             command_in = cmd_out_tmp.split('\r\n')[0]
                             command_out = '\n'.join(cmd_out_tmp.split('\r\n')[1:])
                             if command_in.startswith('vi') or command_in.startswith('nano'):
