@@ -126,6 +126,7 @@ def terminal_socket(ws, region, namespace, pod, container):
     # aladdin-cc-symconsole-pythonapp-actanchorhotcard2019_quzhongling，默认用户进入
     # aladdin-cc-symconsole-pythonapp-actanchorhotcard2019_quzhongling_root, root用户进入
     # cc的比较特殊，比如登陆actanchorhotcard2019sandbox，actanchorhotcard2019-sandbox, 需要查询的服务是actanchorhotcard2019
+    container_tmp = container
     if container.endswith('-stage'):
         container_tmp = container[:-6]
     container_tmp =  container_tmp.split('sandbox')[0]
