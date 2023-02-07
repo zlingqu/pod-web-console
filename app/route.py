@@ -175,7 +175,7 @@ def terminal_socket(ws, region, namespace, pod, container):
             # print(message.encode('utf-8'))
             if not is_root: # 非root权限才进行输入判断
                 #回车后：
-                # debian: \r 
+                # debian: \r
                 # alpine: \r + \x1b[3;41R
                 # \t，table，命令补全
                 # '\x1b[A' 上箭头
@@ -186,9 +186,10 @@ def terminal_socket(ws, region, namespace, pod, container):
                     container_stream.write_stdin('\x03') # 发送ctrl+c
                 elif re.match('[/\.\|\w-]', message)  or message == ' ': # \w表示[0-9a-zA-Z-] 
                     cmd_in += message
+                    # print(cmd_in.encode('utf-8'))
                 elif message == '\x7f':     # 删除键
                     cmd_in = cmd_in[:-1]
-                elif message == '\r' or message.startswith('\x1b['): # 输入结束
+                elif message == '\r': # 输入结束
                     if cmd_in == 'exit': # 用户进入可能是普通用户，exit会回到root用户，这里控制下，如果输入exit直接关闭ws
                         container_stream.write_stdin('\r') #退出一下，否则很多sh进程残留
                         container_stream.close()
