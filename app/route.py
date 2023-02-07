@@ -170,13 +170,18 @@ def terminal_socket(ws, region, namespace, pod, container):
         cmd_in = ''
         while not ws.closed: #不停的接收ws数据帧，比如，输入一个ls，会分2条帧l、s过来
             message = ws.receive()
+            # print(message.encode('utf-8'))
 
             #回车后：
             # debian: \r 
             # alpine: \r + \x1b[3;41R
             # \t，table，命令补全
             # if message and message != '\r' and message != '\t' and (not message.startswith('\x1b[')): 
-            if re.match('[\/\.\w-]', message)  or message == ' ': # \w表示[0-9a-zA-Z-] 
+            if message == '\x04':
+                cmd_in = ''
+                ws.send(' -> 不允许执行 Ctrl + d !' )
+                container_stream.write_stdin('\x03') # 发送ctrl+c
+            elif re.match('[\/\.\w-]', message)  or message == ' ': # \w表示[0-9a-zA-Z-] 
                 cmd_in += message
             elif message == '\x7f':     # 删除键
                 cmd_in = cmd_in[:-1]
