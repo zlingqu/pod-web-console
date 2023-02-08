@@ -1,6 +1,6 @@
 
 
-import app.config as Config
+import app.config.config as Config
 
 # 判断命令是否在授权列表中
 def is_allow_command(cmd):

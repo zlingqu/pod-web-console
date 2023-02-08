@@ -13,7 +13,7 @@ import re
 from app.k8s import k8s_client, k8s_stream_thread
 from app import app
 import app.openid as openid
-import app.config as Config
+import app.config.config as Config
 import app.common as Common
 from app.redis import RedisResource
 
