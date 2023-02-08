@@ -3,7 +3,7 @@ from kubernetes.stream import stream
 import logging
 import threading
 import json,re
-import app.config as Config
+import app.config.config as Config
 import app.log as Log
 from flask import session
 from app.redis import RedisResource

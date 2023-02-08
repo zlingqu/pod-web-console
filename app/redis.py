@@ -1,12 +1,12 @@
 
 import redis
 import json,re
-import app.config as Config
+import app.config.config as Config
 
     
 class RedisResource(object):
     def __init__(self, expire=None, key_prefix='', *args, **kwargs):
-        redis_url = Config.myConfig.REDIS
+        redis_url = Config.REDIS
         host, port, db = re.match(r'redis://(.*):(.*)/(.*)', redis_url).groups()
         if not hasattr(RedisResource, 'pool'):
             RedisResource.getRedisCoon(host, port, db, *args, **kwargs)

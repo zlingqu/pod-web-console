@@ -1,6 +1,6 @@
 */__pycache__
 __pycache__
 .DS_Store
-app/config.py
+app/config/config.py
 app/log/*
 log
