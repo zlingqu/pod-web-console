@@ -5,6 +5,7 @@ import hmac
 from flask import redirect, url_for
 from flask import session, request
 from flask import render_template
+from flask_restful import reqparse
 
 from flask_sockets import Sockets
 from flask import render_template, request
@@ -33,6 +34,20 @@ def logout():
     session.pop('fullname', None)
     session.pop('email', None)
     return redirect(url_for('homepage'))
+
+
+@app.route('/terminal/redis',methods=['POST'])
+def set_redis():
+    parser = reqparse.RequestParser(bundle_errors=True)
+    parser.add_argument('key', type=str, required=True)
+    parser.add_argument('expire', type=int, required=True)
+    payload = parser.parse_args()
+    key = payload['key']
+    try:
+        redis_client.write(key, 'true', payload['expire'])
+        return 'success', 200
+    except:
+        return '连接redis失败', 503
 
 
 @app.route('/terminal/openidlogin')

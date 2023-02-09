@@ -26,5 +26,5 @@ class RedisResource(object):
         return {}
 
     def write(self, key, value, expire):
-        self.client.set(key, json.dumps(value).encode())
+        self.client.set(key, value)
         self.client.expire(key, expire)
