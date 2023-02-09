@@ -135,21 +135,19 @@ def terminal():
 def terminal_socket(ws, region, namespace, pod, container):
     cols = request.args.get('cols') # 控制tty输出的长、宽
     rows = request.args.get('rows')
-    # logging.info('Try create socket connection')
-    
-    # cc的比较特殊，比如登陆actanchorhotcard2019sandbox，actanchorhotcard2019-sandbox, 需要查询的服务是actanchorhotcard2019
-    controller_name = container
-    if Config.kube_config_dict[region]['project'] == 'cc':
-        controller_name =  container.split('sandbox')[0]
-        controller_name =  controller_name.split('-stage')[0]
-    
+
     # pod: webccmspclog-7c69c997b6-vggfq，deploy、daemonset类型的
     # pod: webccmspclog-0，statefulset类型的，数字结尾
-    # redis中的key，有包含控制器名字。container不一定和控制器名字相同，所以要判断下
+    # redis中的key，有包含控制器（服务名）名字，服务名从pod中获取
     if re.search('^[0-9]*$',pod.split('-')[-1]):  #最后一段全是数字，statefulset类型的
         controller_name = '-'.join(pod.split('-')[:-1])
     else:
         controller_name = '-'.join(pod.split('-')[:-2])
+    
+    # cc的比较特殊，比如登陆actanchorhotcard2019sandbox，actanchorhotcard2019-stage, 需要查询的服务是actanchorhotcard2019
+    if Config.kube_config_dict[region]['project'] == 'cc':
+        controller_name =  controller_name.split('sandbox')[0]
+        controller_name =  controller_name.split('-stage')[0]
 
     # 验证redis中的key是否过期
     # redis中key的格式，比如：
