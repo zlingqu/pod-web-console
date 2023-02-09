@@ -10,7 +10,7 @@ from flask_restful import reqparse
 from flask_sockets import Sockets
 from flask import render_template, request
 import logging
-import re
+import re,json
 from app.k8s import k8s_client, k8s_stream_thread
 from app import app
 import app.openid as openid
@@ -45,9 +45,9 @@ def set_redis():
     key = payload['key']
     try:
         redis_client.write(key, 'true', payload['expire'])
-        return 'success', 200
+        return json.dumps({"code": 200,"msg": 'success'})
     except:
-        return '连接redis失败', 503
+        return json.dumps({"code": 400,"msg": '连接redis失败'}), 400
 
 
 @app.route('/terminal/openidlogin')
