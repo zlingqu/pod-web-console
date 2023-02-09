@@ -1,5 +1,6 @@
 Flask==0.12
 Flask-Sockets==0.2.1
+Flask-RESTful==0.3.5
 kubernetes==25.3.0
 ntessa==0.2.112
 Werkzeug==0.16.0
