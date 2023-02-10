@@ -133,6 +133,11 @@ def terminal():
 
 @sockets.route('/terminal/<region>/<namespace>/<pod>/<container>')
 def terminal_socket(ws, region, namespace, pod, container):
+    if str(region) not in Config.kube_config_dict.keys():
+        ws.send('region【{}】还没有接入该系统！！ \r\n'.format(region))
+        ws.close()
+        return
+
     cols = request.args.get('cols') # 控制tty输出的长、宽
     rows = request.args.get('rows')
 
