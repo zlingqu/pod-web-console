@@ -113,7 +113,7 @@ def terminal():
         return redirect(location)
     
 
-    if not (request.args.get('region', '') and \
+    if not (request.args.get('cluster', '') and \
        request.args.get('namespace', '') and \
        request.args.get('pod', '') and \
        request.args.get('container', '')) :
@@ -121,20 +121,20 @@ def terminal():
         return '''<h1>参数错误</h1> 
             <br /> 必须同时指定4个参数，
                 <ul> 
-                    <li>region</li>
+                    <li>cluster</li>
                     <li>namespace</li>
                     <li>pod</li>
                     <li>container</li> 
                 </ul>
             <br /><br /> 
-            比如： http://xxx.163.com/terminal/window?region=xxx&namespace=xxx&pod=xxx&container=xxx
+            比如： http://xxx.163.com/terminal/window?cluster=xxx&namespace=xxx&pod=xxx&container=xxx
             '''
     return render_template('terminal.html')
 
-@sockets.route('/terminal/<region>/<namespace>/<pod>/<container>')
-def terminal_socket(ws, region, namespace, pod, container):
-    if str(region) not in Config.kube_config_dict.keys():
-        ws.send('region【{}】还没有接入该系统！！ \r\n'.format(region))
+@sockets.route('/terminal/<cluster>/<namespace>/<pod>/<container>')
+def terminal_socket(ws, cluster, namespace, pod, container):
+    if str(cluster) not in Config.kube_config_dict.keys():
+        ws.send('cluster【{}】还没有接入该系统！！ \r\n'.format(cluster))
         ws.close()
         return
 
@@ -150,14 +150,14 @@ def terminal_socket(ws, region, namespace, pod, container):
         controller_name = '-'.join(pod.split('-')[:-2])
     
     # cc的比较特殊，比如登陆actanchorhotcard2019sandbox，actanchorhotcard2019-stage, 需要查询的服务是actanchorhotcard2019
-    if Config.kube_config_dict[region]['project'] == 'cc':
+    if Config.kube_config_dict[cluster]['project'] == 'cc':
         controller_name =  controller_name.split('sandbox')[0]
         controller_name =  controller_name.split('-stage')[0]
 
     # redis中key的格式有2种：
     # aladdin-cc-symconsole-pythonapp-actanchorhotcard2019_quzhongling，普通用户nguser进入，有命令限制
     # aladdin-cc-symconsole-pythonapp-actanchorhotcard2019_quzhongling_root, 容器默认用户(一般是root）用户进入，命令无限制
-    key = 'aladdin-' + Config.kube_config_dict[region]['project'] + '-symconsole-' + namespace + '-' + controller_name + '_' + session.get('email', '').split('@')[0]
+    key = 'aladdin-' + Config.kube_config_dict[cluster]['project'] + '-symconsole-' + namespace + '-' + controller_name + '_' + session.get('email', '').split('@')[0]
     # print(key)
     try:
         if redis_client.read(key + '_root') :
@@ -176,23 +176,23 @@ def terminal_socket(ws, region, namespace, pod, container):
         ws.close()
         return
     
-    kub = k8s_client(region, is_root)
+    kub = k8s_client(cluster, is_root)
 
     try:
         # print(Config.kube_config_dict)
-        namespace = Config.kube_config_dict[str(region)]['project'] + '-' + namespace
+        namespace = Config.kube_config_dict[str(cluster)]['project'] + '-' + namespace
         container_stream = kub.terminal_start(namespace, pod, container, cols, rows)
         # print(namespace,pod,container)
     except Exception as err:
         ws.send('连接容器遇到错误: {0}\r\n'.format(err))
-        ws.send('可能原因：region参数等输入错误、服务到region的网络不通等！')
+        ws.send('可能原因：cluster参数等输入错误、服务到cluster的网络不通等！')
         ws.close()
         return
 
     username = session.get('email', '').split('@')[0] # 用于日志打印
     fullname = session.get('fullname', '')
 
-    kub_stream = k8s_stream_thread(ws, container_stream, region, namespace, pod, username, fullname)
+    kub_stream = k8s_stream_thread(ws, container_stream, cluster, namespace, pod, username, fullname)
     kub_stream.start()
 
     try:
