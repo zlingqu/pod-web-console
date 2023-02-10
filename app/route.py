@@ -149,10 +149,9 @@ def terminal_socket(ws, region, namespace, pod, container):
         controller_name =  controller_name.split('sandbox')[0]
         controller_name =  controller_name.split('-stage')[0]
 
-    # 验证redis中的key是否过期
-    # redis中key的格式，比如：
-    # aladdin-cc-symconsole-pythonapp-actanchorhotcard2019_quzhongling，默认用户进入
-    # aladdin-cc-symconsole-pythonapp-actanchorhotcard2019_quzhongling_root, root用户进入
+    # redis中key的格式有2种：
+    # aladdin-cc-symconsole-pythonapp-actanchorhotcard2019_quzhongling，普通用户nguser进入，有命令限制
+    # aladdin-cc-symconsole-pythonapp-actanchorhotcard2019_quzhongling_root, 容器默认用户(一般是root）用户进入，命令无限制
     key = 'aladdin-' + Config.kube_config_dict[region]['project'] + '-symconsole-' + namespace + '-' + controller_name + '_' + session.get('email', '').split('@')[0]
     # print(key)
     try:
@@ -180,7 +179,7 @@ def terminal_socket(ws, region, namespace, pod, container):
         container_stream = kub.terminal_start(namespace, pod, container, cols, rows)
         # print(namespace,pod,container)
     except Exception as err:
-        ws.send('Connect container error: {0}\r\n'.format(err))
+        ws.send('连接容器遇到错误: {0}\r\n'.format(err))
         ws.send('可能原因：region参数等输入错误、服务到region的网络不通等！')
         ws.close()
         return
@@ -229,7 +228,7 @@ def terminal_socket(ws, region, namespace, pod, container):
         container_stream.write_stdin('exit\r') #ws关闭了，到容器的通道也关闭
         container_stream.close() #ws关闭了，到容器的通道也关闭
     except Exception as err:
-        logging.error('Connect container error: {}'.format(err))
+        logging.error('连接容器遇到错误: {}'.format(err))
     finally:
         container_stream.write_stdin('exit\r') #直接刷新浏览器，需要将用户退出下，否则会有很多sh进程残留
         container_stream.close()

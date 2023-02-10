@@ -1,6 +1,6 @@
 
 import redis
-import json,re
+import re
 import app.config.config as Config
 
     
@@ -20,7 +20,7 @@ class RedisResource(object):
     def read(self, key):
         serialize = self.client.get(key)
         if serialize is not None:
-            info = json.loads(serialize.decode())
+            info = serialize.decode()
             if info is not None:
                 return info
         return {}
