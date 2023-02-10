@@ -13,12 +13,12 @@ redis_client = RedisResource()
 logger = Log.get_logger()
 
 class k8s_client(object):
-    def __init__(self, region, is_root):
-        self.region = region
+    def __init__(self, cluster, is_root):
+        self.cluster = cluster
         self._update_token()
         self.is_root = is_root
-        self.project = Config.kube_config_dict[region]['project']
-        config.load_kube_config_from_dict(config_dict=Config.kube_config_dict.get(str(region),'')['kube'])
+        self.project = Config.kube_config_dict[cluster]['project']
+        config.load_kube_config_from_dict(config_dict=Config.kube_config_dict[str(cluster)]['kube'])
         self.client_core_v1 = client.CoreV1Api()
         
 
@@ -26,11 +26,11 @@ class k8s_client(object):
         key = 'pod_web_console_k8s_token'
         value = redis_client.read( key)
         if value:
-            Config.kube_config_dict[str(self.region)]['kube']['users'][0]['user']['token'] = value
+            Config.kube_config_dict[str(self.cluster)]['kube']['users'][0]['user']['token'] = value
         else:
             token = get_auth_token(Config.auth_user, Config.auth_key, ttl = 60 * 60 * 24)
             redis_client.write(key, token, 60 * 60 * 23 )
-            Config.kube_config_dict[str(self.region)]['kube']['users'][0]['user']['token'] = token
+            Config.kube_config_dict[str(self.cluster)]['kube']['users'][0]['user']['token'] = token
 
     def get_ns(self):
         ret = self.client_core_v1.list_namespace()
@@ -70,12 +70,12 @@ class k8s_client(object):
 
 class k8s_stream_thread(threading.Thread):
 
-    def __init__(self, ws, container_stream, region, namespace, pod, username, fullname):
+    def __init__(self, ws, container_stream, cluster, namespace, pod, username, fullname):
         super(k8s_stream_thread, self).__init__()
         self.ws = ws
         self.stream = container_stream
-        self.project = Config.kube_config_dict[region]['project']
-        self.region = region
+        self.project = Config.kube_config_dict[cluster]['project']
+        self.cluster = cluster
         self.namespace = namespace
         self.pod = pod
         self.username = username
@@ -117,7 +117,7 @@ class k8s_stream_thread(threading.Thread):
                                 'username': self.username,
                                 'fullname': self.fullname,
                                 'project': self.project,
-                                'region': self.region,
+                                'cluster': self.cluster,
                                 'namespace': self.namespace,
                                 'pod': self.pod,
                                 'command_in': command_in,

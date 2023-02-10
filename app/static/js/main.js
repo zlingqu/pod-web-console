@@ -1,5 +1,5 @@
 
-console.log(window,document.documentElement, $(window).height(), $(window).width())
+// console.log(window,document.documentElement, $(window).height(), $(window).width())
 
 let term,
     websocket,
@@ -19,7 +19,7 @@ createTerminal()
 
 function initWebsocket(){
     let ws_url = 'ws://' + `${window.location.host}` + '/terminal/' +
-    search_obj['region'] + '/' +
+    search_obj['cluster'] + '/' +
     search_obj['namespace'] + '/' +
     search_obj['pod'] + '/' +
     search_obj['container'] + '?' +

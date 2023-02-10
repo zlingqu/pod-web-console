@@ -10,7 +10,7 @@
 <form style="width:60%;margin: auto; padding-top: 100px;" action="/terminal/window">
   <div class="form-group">
     <label for="namespace">请输入集群代号</label>
-    <input class="form-control" name="region" placeholder="比如2104">
+    <input class="form-control" name="cluster" placeholder="比如2104">
   </div>
   <div class="form-group">
     <label for="namespace">请输入名字空间， </label>
@@ -22,7 +22,7 @@
   </div>
   <div class="form-group">
     <label for="container-name">请输入对应容器名称</label>
-    <input class="form-control" name="container" placeholder="默认和服务名相同">
+    <input class="form-control" name="container" placeholder="一个pod可能有多个container">
   </div>
 
   <button type="submit" class="btn btn-primary">Submit</button>
