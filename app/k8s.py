@@ -48,7 +48,7 @@ class k8s_client(object):
             command = [
             "/bin/sh",
             "-c",
-            '''(id {0} > /dev/null 2>&1 || useradd -m {0} > /dev/null 2>&1 || adduser -D {0} ) && \
+            '''(id {0} > /dev/null 2>&1 || useradd -s /bin/bash -m {0} > /dev/null 2>&1 || adduser -D {0} ) && \
             ([ -e /home/{0}/.bashrc ] && sed -i '/alias ls=/d' /home/{0}/.bashrc && sed -i 's/xterm*\|rxvt*/xxxterm/g' /home/{0}/.bashrc) && \
             su - {0} && (exec /bin/bash || exec /bin/sh) \
             '''.format(Config.default_user)
