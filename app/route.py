@@ -133,6 +133,15 @@ def terminal():
 
 @sockets.route('/terminal/<cluster>/<namespace>/<pod>/<container>')
 def terminal_socket(ws, cluster, namespace, pod, container):
+    if not session.get('email'):
+        return redirect('openidlogin')
+    
+    origin_domain = request.headers.get('Origin','').split('//')[1].split(':')[0]
+    if origin_domain not in Config.origin_domain:
+        ws.send('不允许跨域！')
+        ws.close()
+        return
+
     if str(cluster) not in Config.kube_config_dict.keys():
         ws.send('cluster【{}】还没有接入该系统！！ \r\n'.format(cluster))
         ws.close()
