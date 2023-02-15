@@ -13,6 +13,7 @@ window.location.search.replace('?','').split('&').forEach(
 
 document.getElementById('terminal').style.height = window.innerHeight + 'px';
 document.getElementById('terminal').style.width = window.innerWidth + 'px';
+document.getElementById('terminal').style.margin = 0;
 createTerminal()
 
 
