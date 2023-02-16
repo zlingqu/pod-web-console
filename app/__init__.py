@@ -1,42 +1,36 @@
 
-from flask import Flask
-
+from flask import Flask,request
+from ntessa_next.auth.web import init_flask_app, authorize_request
+from .err import authorize_error_handler
+from ntessa_next.auth.exception import (
+    AuthorizeError,AuthorizeUserError
+)
+import app.config.config as Config
 app = Flask(__name__, static_folder='static',
             static_url_path='/terminal/static')
 app.secret_key = 'FiDZjjn1g0sxdVk4'
 
-# from flask import request
-# import json
-# import re,logging
-# from flask import session
 
-# @app.after_request
-# def call_after_request_callbacks(response):
-#     if not hasattr(request, 'auth'):
-#         request.auth = {}
-#     username = session.get('email', '').split('@')[0]
-#     # 通过referer获取请求来源的项目
-#     referer = request.headers.get('referer')
-#     source_project = re.search(r'\/\/(.+?)\.', referer).group(1) if referer else '-'
-#     # 统计一下server提供了哪些API
-#     api = '%s%s' % (request.script_root, request.path)
-#     data = {
-#         'url': request.url.replace(" ", "") if request.url else '-',
-#         'api': api,
-#         'method': request.method,
-#         'status_code': response.status_code,
-#         'host': request.host,
-#         'sub_project': request.auth.get('project', '-'),
-#         'username': username,
-#         'referer': request.headers.get('referer'),
-#         'source_project': source_project,
-#         'X_Forwarded_For': request.headers.get('X-Forwarded-For')
-#     }
-#     if request.method == 'PUT' or request.method == 'POST':
-#         data.update({
-#             'params': request.data,
-#             'description': response.response
-#         })
-#     # logging.info(json.dumps(data))
-#     print(json.dumps(data))
-#     return response
+app.config.update({
+    'NTESSA_AUTH_FLASK_BEFORE_REQUEST': False,
+    'NTESSA_AUTH_SYSTEM_USER': Config.auth_user,
+    'NTESSA_AUTH_KEY': Config.auth_key,
+    'NTESSA_AUTH_ENABLE_DEBUG': False,
+    'NTESSA_AUTH_BASE_URL': Config.auth_url
+})
+
+
+# 注入 auth 校验
+init_flask_app(app)
+# 注入错误
+app.register_error_handler(AuthorizeError,authorize_error_handler)
+
+# 请求前的处理
+@app.before_request
+def call_before_request_callbacks():
+    print('request.path:',request.path)
+    if request.path == '/terminal/redis':
+        authorize_request()
+        if request.auth['name'] not in Config.redis_post_user : # 阿拉丁执行，进行redis授权
+            raise AuthorizeUserError(msg='该接口必须是管理员用户才可以调用！')
+    return
