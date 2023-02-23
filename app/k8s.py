@@ -42,15 +42,23 @@ class k8s_client(object):
             command = [ #默认是项目用户
             "/bin/sh",
             "-c",
-            '''(id {0} > /dev/null 2>&1 && su - {0}) || exec /bin/bash || exec /bin/sh'''.format(self.project)
+            '''(id {0} > /dev/null 2>&1 && su - {0}); \
+            sed -i '/export PS1/d' /etc/profile; \
+            echo "export PS1='\${{debian_chroot:+(\$debian_chroot)}}\\u@\h:\w\$ '" >> /etc/profile; \
+            . /etc/profile; \
+            ([ -e /bin/bash ] && exec /bin/bash || exec /bin/sh) 
+            '''.format(self.project)
             ]
         else:
             command = [
             "/bin/sh",
             "-c",
-            '''(id {0} > /dev/null 2>&1 || useradd -s /bin/bash -m {0} > /dev/null 2>&1 || adduser -D {0} ) && \
-            ([ -e /home/{0}/.bashrc ] && sed -i '/alias ls=/d' /home/{0}/.bashrc && sed -i 's/xterm*\|rxvt*/xxxterm/g' /home/{0}/.bashrc) && \
-            su - {0} && (exec /bin/bash || exec /bin/sh) \
+            '''id {0} > /dev/null 2>&1 || useradd -s /bin/bash -m {0} > /dev/null 2>&1 || adduser -D {0} ; \
+            [ -e /home/{0}/.bashrc ] && sed -i '/alias ls=/d' /home/{0}/.bashrc && sed -i 's/xterm*\|rxvt*/xxxterm/g' /home/{0}/.bashrc; \
+            sed -i '/export PS1/d' /etc/profile; \
+            echo "export PS1='\${{debian_chroot:+(\$debian_chroot)}}\\u@\h:\w\$ '" >> /etc/profile; \
+            su - {0} ; \
+            [ -e /bin/bash ] && exec /bin/bash || exec /bin/sh \
             '''.format(Config.default_user)
             ]
 
