@@ -28,7 +28,7 @@ class k8s_client(object):
         if value:
             Config.kube_config_dict[str(self.cluster)]['kube']['users'][0]['user']['token'] = value
         else:
-            token = get_auth_token(Config.auth_user, Config.auth_key, auth_url=Config.auth_url, ttl = 60 * 60 * 24)
+            token = get_auth_token(Config.auth_user, Config.auth_key, auth_url=Config.auth_url + '/api/v2', ttl = 60 * 60 * 24)
             redis_client.write(key, token, 60 * 60 * 23 )
             Config.kube_config_dict[str(self.cluster)]['kube']['users'][0]['user']['token'] = token
 
