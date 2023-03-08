@@ -220,7 +220,7 @@ def terminal_socket(ws, cluster, namespace, pod, container):
                     cmd_in = ''
                     ws.send(' -> 不允许执行 Ctrl + d !' )
                     container_stream.write_stdin('\x03') # 发送ctrl+c
-                elif re.match('[/\.\|\w-]', message)  or message == ' ': # \w表示[0-9a-zA-Z-] 
+                elif re.match('[/\.\|\w\:-]', message)  or message == ' ': # \w表示[0-9a-zA-Z-] 
                     cmd_in += message
                     # print(cmd_in.encode('utf-8'))
                 elif message == '\x7f':     # 删除键
@@ -231,8 +231,9 @@ def terminal_socket(ws, cluster, namespace, pod, container):
                         container_stream.close()
                         ws.close()
                     if cmd_in != '' and message != '\t': # 排除：回车、或者table键
-                        # cmd_in 举例， /usr/bin/wget 'aa.com/a.txt'、ps ux、ip
-                        if not Common.is_allow_command(cmd_in.split(' ')[0].split('/')[-1]):
+                        print(cmd_in.encode('utf8'))
+                        # cmd_in 举例， /usr/bin/wget 'aa.com/a.txt'、ps ux、ip, :开头是vim编辑模式
+                        if not Common.is_allow_command(cmd_in.split(' ')[0].split('/')[-1]) and not cmd_in.startswith(':'):
                             message = '\x03' # 发送ctrl+c
                             ws.send(' -> 不允许执行' + cmd_in.split(' ')[0] + '    ')
                         cmd_in = '' # 命令行结束，将变量置空
