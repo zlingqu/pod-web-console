@@ -206,9 +206,10 @@ def terminal_socket(ws, cluster, namespace, pod, container):
 
     try:
         cmd_in = ''
+        is_vim = False # vim模式下，不做命令输入判断
+        is_up_down = False # up_down模式，使用上下箭头获取输入历史，历史命令有权限，也认为当前操作也有权限，不用判定
         while not ws.closed: #不停的接收ws数据帧，比如，输入一个ls，会分2条帧l、s过来
             message = ws.receive()
-            # print(message.encode('utf-8'))
             if not is_root: # 非root权限才进行输入判断
                 #回车后：
                 # debian: \r
@@ -216,13 +217,14 @@ def terminal_socket(ws, cluster, namespace, pod, container):
                 # \t，table，命令补全
                 # '\x1b[A' 上箭头
                 # '\x1b[B' 下箭头
-                if message == '\x04':
+                if message == '\x04': # Ctrl + d = '\x04'，否则用户从nguser返回root用户
                     cmd_in = ''
                     ws.send(' -> 不允许执行 Ctrl + d !' )
                     container_stream.write_stdin('\x03') # 发送ctrl+c
+                elif message.encode('utf-8') in [b'\x1b[A', b'\x1b[B']: # 进入up_down模式
+                    is_up_down = True
                 elif re.match('[/\.\|\w\:-]', message)  or message == ' ': # \w表示[0-9a-zA-Z-] 
                     cmd_in += message
-                    # print(cmd_in.encode('utf-8'))
                 elif message == '\x7f':     # 删除键
                     cmd_in = cmd_in[:-1]
                 elif message == '\r': # 输入结束
@@ -230,13 +232,19 @@ def terminal_socket(ws, cluster, namespace, pod, container):
                         container_stream.write_stdin('\r') #退出一下，否则很多sh进程残留
                         container_stream.close()
                         ws.close()
-                    if cmd_in != '' and message != '\t': # 排除：回车、或者table键
-                        print(cmd_in.encode('utf8'))
-                        # cmd_in 举例， /usr/bin/wget 'aa.com/a.txt'、ps ux、ip, :开头是vim末行模式
-                        if not Common.is_allow_command(cmd_in.split(' ')[0].split('/')[-1]) and not cmd_in.startswith(':'):
+                    cmd_in_first = cmd_in.split(' ')[0].split('/')[-1]
+                    if  cmd_in_first in ['vi','vim']:
+                        is_vim = True  # 进入vim模式
+                    if cmd_in in [':q', ':q!', ':wq', ':wq!', ':x', ':x!', ':exit', ':qa', 'cq']:
+                        is_vim = False # 退出vim模式
+                    
+                    if cmd_in != '' and message != '\t' and not is_vim and not is_up_down: # 排除：回车、或者table键、不是vim模式
+                        # cmd_in 举例， /usr/bin/wget 'http://aa.com/a.txt'、ps ux、ip,
+                        if not Common.is_allow_command(cmd_in_first):
                             message = '\x03' # 发送ctrl+c
                             ws.send(' -> 不允许执行' + cmd_in.split(' ')[0] + '    ')
-                        cmd_in = '' # 命令行结束，将变量置空
+                    is_up_down = False  # 命令行结束，关闭up_down模式
+                    cmd_in = ''         # 命令行结束，将变量置空
             if message is not None and message != '__ping__':
                 container_stream.write_stdin(message)
                 
