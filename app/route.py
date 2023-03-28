@@ -11,7 +11,7 @@ from flask_sockets import Sockets
 from flask import render_template, request
 import logging
 import re,json
-from app.k8s import k8s_client, k8s_stream_thread
+from app.k8s import k8s_client, k8s_stream_thread, multi_k8s_stream_thread
 from app import app
 import app.openid as openid
 import app.config.config as Config
@@ -113,23 +113,30 @@ def terminal():
         return redirect(location)
     
 
-    if not (request.args.get('cluster', '') and \
+    if (request.args.get('cluster', '') and \
        request.args.get('namespace', '') and \
        request.args.get('pod', '') and \
        request.args.get('container', '')) :
+        # 登陆单个pod
+        return render_template('terminal.html')
+    if (request.args.get('project', '') and \
+       request.args.get('namespace', '') and \
+       (request.args.get('deployment', '') or request.args.get('statefulset', '')) and \
+       request.args.get('container', '')) :
+        # 登陆多个pod，指定deployment或者statefulset名字
+        return render_template('terminal.html')
 
-        return '''<h1>参数错误</h1> 
-            <br /> 必须同时指定4个参数，
-                <ul> 
-                    <li>cluster</li>
-                    <li>namespace</li>
-                    <li>pod</li>
-                    <li>container</li> 
-                </ul>
-            <br /><br /> 
-            比如： http://xxx.163.com/terminal/window?cluster=xxx&namespace=xxx&pod=xxx&container=xxx
-            '''
-    return render_template('terminal.html')
+    return '''<h1>参数错误</h1> 
+        <br /> 支持以下3种使用方式:
+            <ul> 
+                <li><h2>单pod登录：</h2>http://xxx.163.com/terminal/window?cluster=xxx&namespace=xxx&pod=xxx&container=xxx</li>
+                <li><h2>deployment 多pod登录：</h2>http://xxx.163.com/terminal/window?project=xxx&namespace=xxx&deployment=xxx&container=xxx</li>
+                <li><h2>statefulset 多pod登录：</h2>http://xxx.163.com/terminal/window?project=xxx&namespace=xxx&statefulset=xxx&container=xxx</li>
+
+            </ul>
+        <br /><br /> 
+        '''
+    
 
 @sockets.route('/terminal/<cluster>/<namespace>/<pod>/<container>')
 def terminal_socket(ws, cluster, namespace, pod, container):
@@ -256,6 +263,104 @@ def terminal_socket(ws, cluster, namespace, pod, container):
         container_stream.write_stdin('exit\r') #直接刷新浏览器，需要将用户退出下，否则会有很多sh进程残留
         container_stream.close()
         ws.close()
+# 批量登陆pod
+@sockets.route('/terminal/multi/<project>/<namespace>/<name>/<container>')
+def terminal_socket(ws, project, namespace, name, container):
+    if not session.get('email'):
+        return redirect('openidlogin')
+    
+    origin_domain = request.headers.get('Origin','').split('//')[1].split(':')[0]
+    if origin_domain not in Config.origin_domain:
+        ws.send('不允许跨域！')
+        ws.close()
+        return
+
+    if project not in [v['project'] for v in Config.kube_config_dict.values()]:
+        ws.send('项目【{}】还没有接入该系统！！ \r\n'.format(project))
+        ws.close()
+        return
+
+    cols = request.args.get('cols') # 控制tty输出的长、宽
+    rows = request.args.get('rows')
+    controller_type = request.args.get('controller')
+
+    controller_name = name
+    # cc的比较特殊，比如登陆actanchorhotcard2019sandbox，actanchorhotcard2019-stage, 需要查询的服务是actanchorhotcard2019
+    if project == 'cc':
+        controller_name =  controller_name.split('sandbox')[0]
+        controller_name =  controller_name.split('-stage')[0]
+
+    # redis中key的格式
+    # aladdin-cc-symconsole-pythonapp-actanchorhotcard2019_quzhongling_root, 容器默认用户(一般是root）用户进入，命令无限制
+    key = 'aladdin-' + project + '-symconsole-' + namespace + '-' + controller_name + '_' + session.get('email', '').split('@')[0] + '_root'
+
+    try:
+        if not redis_client.read(key ) :
+            ws.send('redis中没有找到以下key:\r\n')
+            ws.send(key + '(不限制命令执行！)\r\n')
+            ws.send('批量登陆容器需要root权限！\r\n')
+            ws.send('可能未申请或者已过期!\r\n')
+            ws.close()
+            return
+    except:
+        ws.send('redis连接失败！')
+        ws.close()
+        return
+    pod_list = []
+        # 找出该服务所拥有的所有pod
+    for k,v in Config.kube_config_dict.items():
+        if v['project'] == project:
+            # print('k:',k, name, project + '-' + namespace)
+            sub_pod_list = k8s_client(k, True).get_controller_pod(project + '-' + namespace, name, controller_type)
+            pod_list += sub_pod_list
+    # print('pod_list',pod_list)
+    if not pod_list: # 没有找到pod
+        ws.send('遇到错误，没有找到pod，可能原因: \r\n')
+        ws.send('1. 本代理到集群api server的网络不通！\r\n')
+        ws.send('2. 服务和namespace、project等不匹配 \r\n')
+        ws.send('3. 不存在本服务 \r\n')
+        ws.send('4. 本服务副本是0 \r\n')
+        ws.close()
+        return
+    container_stream_list = []
+    for pod in pod_list:
+        c = pod.split('-')[-1]
+        p = '-'.join(pod.split('-')[0:-1])
+        try:
+            container_stream_list.append({
+                'stream': k8s_client(c,True).terminal_start(project + '-' + namespace, p, container, cols, rows),
+                'pod': pod
+            })
+        except:
+            pass
+            #  多集群时，有些个别集群container参数不符合
+            print('链接失败～～',project + '-' + namespace, c,p,container)
+
+
+    username = session.get('email', '').split('@')[0] # 用于日志打印
+    fullname = session.get('fullname', '')
+    kub_stream = multi_k8s_stream_thread(ws, container_stream_list , project, namespace, username, fullname)
+    kub_stream.start()
+
+    try:
+        while not ws.closed: # 不停的接收ws数据帧，比如，输入一个ls，会分2条帧l、s过来
+            message = ws.receive()
+            ws.send(message)
+            if message is not None and message != '__ping__':
+                for container_stream in container_stream_list:
+                    container_stream['stream'].write_stdin(message)
+        for container_stream in container_stream_list:
+            container_stream['stream'].write_stdin('exit\r') #ws关闭了，到容器的通道也关闭
+            container_stream['stream'].close() #ws关闭了，到容器的通道也关闭
+    except Exception as err:
+        logging.error('连接容器遇到错误: {}'.format(err))
+    finally:
+        for container_stream in container_stream_list:
+            container_stream['stream'].write_stdin('exit\r') #直接刷新浏览器，需要将用户退出下，否则会有很多sh进程残留
+            container_stream['stream'].close() #ws关闭了，到容器的通道也关闭
+        ws.close()
+        return
+
 
 @app.route('/terminal', methods=['GET'])
 def index():

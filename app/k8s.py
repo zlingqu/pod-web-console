@@ -19,7 +19,8 @@ class k8s_client(object):
         self.is_root = is_root
         self.project = Config.kube_config_dict[cluster]['project']
         config.load_kube_config_from_dict(config_dict=Config.kube_config_dict[str(cluster)]['kube'])
-        self.client_core_v1 = client.CoreV1Api()
+        self.client_core_v1_api = client.CoreV1Api()
+        self.client_apps_v1_api = client.AppsV1Api()
         
 
     def _update_token(self):
@@ -37,6 +38,32 @@ class k8s_client(object):
         ret = self.client_core_v1.list_namespace()
         result = [ ns.metadata.name for ns in ret.items ]
         return result
+    
+    # 获取控制器所管理的pod
+    def get_controller_pod(self, namespace, name, type):
+        try:          
+            if type=='deployment':
+                deployment = self.client_apps_v1_api.read_namespaced_deployment(name, namespace)
+                selector_dict = deployment.spec.selector.match_labels
+            elif type=='statefulset':
+                stateful_set = self.client_apps_v1_api.read_namespaced_stateful_set(name, namespace)
+                selector_dict = stateful_set.spec.selector.match_labels
+            # selector_dict： {'app': 'nginx', 'project': 'cc'}
+            selector_list = []
+            for k,v in selector_dict.items():
+                selector_list.append('{0}={1}'.format(k,v))
+            selector_str = ','.join(selector_list)
+            # selector_str='app=nginx,project=cc'，一般没问题，有可能选错
+            pods = self.client_core_v1_api.list_namespaced_pod(namespace, label_selector=selector_str)
+            pod_name = [pod.metadata.name + '-' + self.cluster for pod in pods.items]
+            # 加上一个cluster的后缀
+            # pod_name = [ 'nginx-7b4b84bdf5-8cg65-2104',
+            #             'nginx-7b4b84bdf5-c6cth-2104',
+            #             'nginx-7b4b84bdf5-n6cm2-2104']
+            return pod_name
+        except : # 网络不通、服务不存在、服务副本是0等情况
+            return []
+
 
     def terminal_start(self, namespace, pod, container, cols, rows):
         if self.is_root:
@@ -64,7 +91,7 @@ class k8s_client(object):
             ]
 
         container_stream = stream(
-            self.client_core_v1.connect_get_namespaced_pod_exec,
+            self.client_core_v1_api.connect_get_namespaced_pod_exec,
             name=pod,
             namespace=namespace,
             container=container,
@@ -142,3 +169,70 @@ class k8s_stream_thread(threading.Thread):
                 logging.error('container stream err: {}'.format(err))
                 self.ws.close()
                 break
+
+# 多pod批量登陆
+class multi_k8s_stream_thread(threading.Thread):
+    def __init__(self, ws, container_stream_list, project, namespace, username, fullname):
+        super(multi_k8s_stream_thread, self).__init__()
+        self.ws = ws
+        self.stream_list = container_stream_list
+        self.project = project
+        self.namespace = namespace
+        self.username = username
+        self.fullname = fullname
+    
+    def _is_include_ps1(self, ps1, string):
+        if re.search(ps1,string):
+            return True, re.findall(ps1, string)[0]
+        return False, ''
+    
+    def _run(self,stream,pod):
+        cluster = pod.split('-')[-1]
+        pod = '-'.join(pod.split('-')[0:-1])
+        ps1 = '[()\w ]*@' + pod + ':[~/\.\w]*[\$#]{1}\s' #和单pod一样
+        cmd_out = ''
+        while not self.ws.closed:
+            if not stream.is_open():
+                self.ws.close()
+            try:
+                if stream.peek_stdout():
+                    stdout = stream.read_stdout(timeout=3)
+                    # print('stdout:', stdout.encode('utf8'))
+                    cmd_out += stdout
+                    code, subStr = self._is_include_ps1(ps1, cmd_out) # 输出结束
+                    if code:
+                        self.ws.send(cmd_out)
+                        cmd_out_tmp = cmd_out.replace(subStr,'')
+                        # print('cmd_out_tmp:',cmd_out_tmp.encode('utf8'))
+                        if cmd_out_tmp not in ['\r\n', '']:
+                            # print(cmd_out_tmp.encode('utf8'))
+                            command_in = cmd_out_tmp.split('\r\n')[0]
+                            command_out = '\n'.join(cmd_out_tmp.split('\r\n')[1:])
+                            if command_in.startswith('vi') or command_in.startswith('nano'):
+                                command_out = ''
+                            logger.info({
+                                'username': self.username,
+                                'fullname': self.fullname,
+                                'project': self.project,
+                                'cluster': cluster,
+                                'namespace': self.namespace,
+                                'pod': pod,
+                                'command_in': command_in,
+                                'command_out': command_out,
+                                })
+                        cmd_out = ''
+                if stream.peek_stderr():
+                    stderr = stream.read_stderr()
+                    self.ws.send(stderr)
+            except Exception as err:
+                logging.error('container stream err: {}'.format(err))
+                self.ws.close()
+                break
+    def run(self):
+        stream_threads = []
+        for stream in self.stream_list:
+            stream_threads.append(threading.Thread(
+                target=self._run, args=(stream['stream'],stream['pod'])
+            ))
+        for thread in stream_threads: #多线程编程，加快访问速度
+            thread.start()
