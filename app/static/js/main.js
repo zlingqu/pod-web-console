@@ -19,13 +19,42 @@ createTerminal()
 
 
 function initWebsocket(){
-    let ws_url = 'ws://' + `${window.location.host}` + '/terminal/' +
-    search_obj['cluster'] + '/' +
-    search_obj['namespace'] + '/' +
-    search_obj['pod'] + '/' +
-    search_obj['container'] + '?' +
-    'cols=' + term.cols + '&' +
-    'rows=' + term.rows;
+    console.log('cluster', search_obj['cluster'])
+    let ws_url = ''
+    if(search_obj['cluster']){
+        ws_url = 'ws://' + `${window.location.host}` + '/terminal/' +
+        search_obj['cluster'] + '/' +
+        search_obj['namespace'] + '/' +
+        search_obj['pod'] + '/' +
+        search_obj['container'] + '?' +
+        'cols=' + term.cols + '&' +
+        'rows=' + term.rows;
+    }else if(search_obj['deployment']){
+        ws_url = 'ws://' + `${window.location.host}` + '/terminal/multi/' +
+        search_obj['project'] + '/' +
+        search_obj['namespace'] + '/' +
+        search_obj['deployment']  + '/' +
+        search_obj['container'] + '?' +
+        'controller=deployment' + '&' +
+        'cols=' + term.cols + '&' +
+        'rows=' + term.rows;
+    }else{
+        ws_url = 'ws://' + `${window.location.host}` + '/terminal/multi/' +
+        search_obj['project'] + '/' +
+        search_obj['namespace'] + '/' +
+        search_obj['statefulset']  + '/' +
+        search_obj['container'] + '?' +
+        'controller=statefulset' + '&' +
+        'cols=' + term.cols + '&' +
+        'rows=' + term.rows;
+    }
+    // let ws_url = 'ws://' + `${window.location.host}` + '/terminal/' +
+    // search_obj['cluster'] + '/' +
+    // search_obj['namespace'] + '/' +
+    // search_obj['pod'] + '/' +
+    // search_obj['container'] + '?' +
+    // 'cols=' + term.cols + '&' +
+    // 'rows=' + term.rows;
     websocket = new WebSocket(ws_url);
 }
 
