@@ -15,6 +15,7 @@ from app.k8s import k8s_client, k8s_stream_thread, multi_k8s_stream_thread
 from app import app
 import app.openid as openid
 import app.config.config as Config
+import app.handler as handler
 import app.common as Common
 from app.redis import RedisResource
 
@@ -174,20 +175,19 @@ def terminal_socket(ws, cluster, namespace, pod, container):
     # aladdin-cc-symconsole-pythonapp-actanchorhotcard2019_quzhongling，普通用户nguser进入，有命令限制
     # aladdin-cc-symconsole-pythonapp-actanchorhotcard2019_quzhongling_root, 容器默认用户(一般是root）用户进入，命令无限制
     key = 'aladdin-' + Config.kube_config_dict[cluster]['project'] + '-symconsole-' + namespace + '-' + controller_name + '_' + session.get('email', '').split('@')[0]
-    # print(key)
-    try:
-        if redis_client.read(key + '_root') :
-            is_root = True
-        elif redis_client.read(key):
-            is_root = False
-        else:
-            ws.send('redis中没有找到以下key:\r\n')
-            ws.send(key + '_root' + '(不限制命令执行！)\r\n')
-            ws.send(key + '(限制命令执行！))\r\n')
-            ws.send('可能未申请或者已过期!\r\n')
-            ws.close()
-            return
-    except:
+    is_root,key = handler.get_is_root(key, Config.kube_config_dict[cluster]['project'])
+    if is_root == 1:
+        is_root = True
+    elif is_root == 2:
+        is_root = False
+    elif is_root == 3:
+        ws.send('redis中没有找到以下key:\r\n')
+        ws.send(key + '_root' + '(不限制命令执行！)\r\n')
+        ws.send(key + '(限制命令执行！))\r\n')
+        ws.send('可能未申请或者已过期!\r\n')
+        ws.close()
+        return
+    else:
         ws.send('redis连接失败！')
         ws.close()
         return
@@ -294,15 +294,20 @@ def terminal_socket(ws, project, namespace, name, container):
     # aladdin-cc-symconsole-pythonapp-actanchorhotcard2019_quzhongling_root, 容器默认用户(一般是root）用户进入，命令无限制
     key = 'aladdin-' + project + '-symconsole-' + namespace + '-' + controller_name + '_' + session.get('email', '').split('@')[0] + '_root'
 
-    try:
-        if not redis_client.read(key ) :
-            ws.send('redis中没有找到以下key:\r\n')
-            ws.send(key + '(不限制命令执行！)\r\n')
-            ws.send('批量登陆容器需要root权限！\r\n')
-            ws.send('可能未申请或者已过期!\r\n')
-            ws.close()
-            return
-    except:
+    is_root,key = handler.get_is_root(key, project)
+
+    if is_root == 1:
+        is_root = True
+    elif is_root == 2:
+        is_root = False
+    elif is_root == 3:
+        ws.send('redis中没有找到以下key:\r\n')
+        ws.send(key + '(不限制命令执行！)\r\n')
+        ws.send('批量登陆容器需要root权限！\r\n')
+        ws.send('可能未申请或者已过期!\r\n')
+        ws.close()
+        return
+    else:
         ws.send('redis连接失败！')
         ws.close()
         return
