@@ -5,7 +5,6 @@ import threading
 import json,re
 import app.config.config as Config
 import app.log as Log
-from flask import session
 from app.redis import RedisResource
 from ntessa.utils import get_auth_token
 
