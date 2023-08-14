@@ -23,15 +23,14 @@ class k8s_client(object):
         
 
     def _update_token(self):
-        if self.cluster != "15065": # 这个是aws的集群，不使用统一的token
-            key = 'pod_web_console_k8s_token'
-            value = redis_client.read( key)
-            if value:
-                Config.kube_config_dict[str(self.cluster)]['kube']['users'][0]['user']['token'] = value
-            else:
-                token = get_auth_token(Config.auth_user, Config.auth_key, auth_url=Config.auth_url + '/api/v2', ttl = 60 * 60 * 24)
-                redis_client.write(key, token, 60 * 60 * 23 )
-                Config.kube_config_dict[str(self.cluster)]['kube']['users'][0]['user']['token'] = token
+        key = 'pod_web_console_k8s_token'
+        value = redis_client.read( key)
+        if value:
+            Config.kube_config_dict[str(self.cluster)]['kube']['users'][0]['user']['token'] = value
+        else:
+            token = get_auth_token(Config.auth_user, Config.auth_key, auth_url=Config.auth_url + '/api/v2', ttl = 60 * 60 * 24)
+            redis_client.write(key, token, 60 * 60 * 23 )
+            Config.kube_config_dict[str(self.cluster)]['kube']['users'][0]['user']['token'] = token
 
     def get_ns(self):
         ret = self.client_core_v1.list_namespace()
