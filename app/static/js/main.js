@@ -4,12 +4,19 @@
 let term,
     websocket,
     search_obj = {}
+    ws_protocol = 'wss://'
     containerTerm = document.getElementById('#terminal')
 
 window.location.search.replace('?','').split('&').forEach(
     item => {
         search_obj[item.split('=')[0]] = item.split('=')[1]
     });
+
+if(window.location.protocol === "http:"){
+    ws_protocol = 'ws://'
+}
+
+    
 
 document.getElementById('terminal').style.height = window.innerHeight + 'px';
 document.getElementById('terminal').style.width = window.innerWidth + 'px';
@@ -22,7 +29,7 @@ function initWebsocket(){
     console.log('cluster', search_obj['cluster'])
     let ws_url = ''
     if(search_obj['cluster']){
-        ws_url = 'ws://' + `${window.location.host}` + '/terminal/' +
+        ws_url = ws_protocol+ `${window.location.host}` + '/terminal/' +
         search_obj['cluster'] + '/' +
         search_obj['namespace'] + '/' +
         search_obj['pod'] + '/' +
@@ -30,7 +37,7 @@ function initWebsocket(){
         'cols=' + term.cols + '&' +
         'rows=' + term.rows;
     }else if(search_obj['deployment']){
-        ws_url = 'ws://' + `${window.location.host}` + '/terminal/multi/' +
+        ws_url = ws_protocol + `${window.location.host}` + '/terminal/multi/' +
         search_obj['project'] + '/' +
         search_obj['namespace'] + '/' +
         search_obj['deployment']  + '/' +
@@ -39,7 +46,7 @@ function initWebsocket(){
         'cols=' + term.cols + '&' +
         'rows=' + term.rows;
     }else{
-        ws_url = 'ws://' + `${window.location.host}` + '/terminal/multi/' +
+        ws_url = ws_protocol + `${window.location.host}` + '/terminal/multi/' +
         search_obj['project'] + '/' +
         search_obj['namespace'] + '/' +
         search_obj['statefulset']  + '/' +
